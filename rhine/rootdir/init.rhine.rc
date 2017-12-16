@@ -34,22 +34,6 @@ on boot
     # WCNSS enable
     write /dev/wcnss_wlan 1
 
-    # add a cpuset for the camera daemon
-    mkdir /dev/cpuset/camera-daemon
-    write /dev/cpuset/camera-daemon/cpus 0
-    write /dev/cpuset/camera-daemon/mems 0
-    chown system system /dev/cpuset/camera-daemon
-    chown system system /dev/cpuset/camera-daemon/tasks
-    chmod 0664 /dev/cpuset/camera-daemon/tasks
-
-    # update foreground cpuset now that processors are up
-    # reserve CPU 3 for the top app
-    write /dev/cpuset/foreground/cpus 0-2
-    write /dev/cpuset/foreground/boost/cpus 0-3
-    write /dev/cpuset/background/cpus 0
-    write /dev/cpuset/system-background/cpus 0-1
-    write /dev/cpuset/top-app/cpus 0-3
-
 # OSS WLAN and BT MAC setup
 service macaddrsetup /vendor/bin/macaddrsetup /sys/devices/fb000000.qcom,wcnss-wlan/wcnss_mac_addr
     class core
@@ -57,7 +41,6 @@ service macaddrsetup /vendor/bin/macaddrsetup /sys/devices/fb000000.qcom,wcnss-w
     group system bluetooth
     disabled
     oneshot
-    writepid /dev/cpuset/system-background/tasks
 
 service wpa_supplicant /vendor/bin/hw/wpa_supplicant \
     -iwlan0 -Dnl80211 -c/data/misc/wifi/wpa_supplicant.conf \

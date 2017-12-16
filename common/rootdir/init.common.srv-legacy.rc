@@ -18,7 +18,6 @@ service tad_static /vendor/bin/tad_static /dev/block/bootdevice/by-name/TA 0,16
     user root
     group root system wakelock
     socket tad stream 0660 system system
-    writepid /dev/cpuset/system-background/tasks
     shutdown critical
 
 # SONY misc
@@ -26,20 +25,17 @@ service ta_qmi_service /vendor/bin/ta_qmi_service
     class core
     user root
     group root system wakelock
-    writepid /dev/cpuset/system-background/tasks
     shutdown critical
 
 # SONY prop
 service sct_service /vendor/bin/sct_service
     class core
     user root
-    writepid /dev/cpuset/system-background/tasks
 
 # SONY prop
 service mlog_qmi_service /vendor/bin/mlog_qmi_service
     class core
     user root
-    writepid /dev/cpuset/system-background/tasks
     shutdown critical
 
 # QCOM prop
@@ -47,7 +43,6 @@ service rmt_storage /vendor/bin/rmt_storage
     class core
     user root
     group system wakelock
-    writepid /dev/cpuset/system-background/tasks
     shutdown critical
 
 # QCOM prop
@@ -56,14 +51,12 @@ service qmuxd /vendor/bin/qmuxd
     user radio
     group radio audio bluetooth wakelock gps nfc diag
     disabled
-    writepid /dev/cpuset/system-background/tasks
 
 # QCOM prop
 service netmgrd /vendor/bin/netmgrd
     class main
     group system wakelock
     disabled
-    writepid /dev/cpuset/system-background/tasks
 
 # QCOM prop
 service irsc_util /vendor/bin/irsc_util "/etc/sec_config"
@@ -76,14 +69,12 @@ service qcamerasvr /vendor/bin/mm-qcamera-daemon
     class late_start
     user camera
     group camera system inet input graphics
-    writepid /dev/cpuset/camera-daemon/tasks
 
 # QCOM prop
 service per_mgr /vendor/bin/pm-service
     class core
     user system
     group system net_raw
-    writepid /dev/cpuset/system-background/tasks
     shutdown critical
 
 # QCOM prop
@@ -92,21 +83,18 @@ service per_proxy /vendor/bin/pm-proxy
     user system
     group system net_raw
     disabled
-    writepid /dev/cpuset/system-background/tasks
 
 service msm_irqbalance /vendor/bin/msm_irqbalance -f /system/etc/msm_irqbalance.conf
     socket msm_irqbalance seqpacket 660 root system
     class core
     user root
     group root
-    writepid /dev/cpuset/system-background/tasks
 
 # QCOM sensors
 service sensors /vendor/bin/sensors.qcom
     class main
     user root system
     group root system
-    writepid /dev/cpuset/system-background/tasks
     # Grants the ability for this daemon to bind IPC router ports so it can
     # register QMI services
     capabilities NET_BIND_SERVICE
@@ -116,7 +104,6 @@ service qseecomd /vendor/bin/qseecomd
     class core
     user root
     group root
-    writepid /dev/cpuset/system-background/tasks
     shutdown critical
 
 # QCOM ADSP FastRPC
@@ -130,13 +117,11 @@ service thermanager /vendor/bin/thermanager /system/etc/thermanager.xml
     class main
     user root
     group root
-    writepid /dev/cpuset/system-background/tasks
 
 # Offline charger
 service charger /sbin/healthd -c
     class charger
     critical
-    writepid /dev/cpuset/system-background/tasks
 
 # OSS time
 service timekeep /vendor/bin/timekeep restore
@@ -144,7 +129,6 @@ service timekeep /vendor/bin/timekeep restore
     user root
     group root
     oneshot
-    writepid /dev/cpuset/system-background/tasks
 
 # DSDS second ril
 service ril-daemon2 /vendor/bin/hw/rild -c 2
