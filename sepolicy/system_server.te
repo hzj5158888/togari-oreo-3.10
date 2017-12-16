@@ -1,0 +1,21 @@
+allow system_server self:socket ioctl;
+allowxperm system_server self:socket ioctl msm_sock_ipc_ioctls;
+
+binder_call(system_server, hal_camera_default)
+
+# input files
+r_dir_file(system_server, idc_file)
+r_dir_file(system_server, keylayout_file)
+
+# TODO(b/30675296): Remove following dontaudit's upon resolution of this bug
+# The timerslack_ns denials spam the system really horribly
+dontaudit system_server audioserver:file write;
+dontaudit system_server untrusted_app:file write;
+dontaudit system_server hal_audio_default:file write;
+dontaudit system_server appdomain:file write;
+
+allow system_server proc_cmdline:file r_file_perms;
+allow system_server netmgrd_socket:dir r_dir_perms;
+unix_socket_connect(system_server, netmgrd, netmgrd)
+allow system_server self:socket ioctl;
+allowxperm system_server self:socket ioctl msm_sock_ipc_ioctls;
