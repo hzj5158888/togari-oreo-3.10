@@ -21,7 +21,6 @@ DEVICE_PACKAGE_OVERLAYS += \
 # Device etc
 PRODUCT_COPY_FILES := \
     $(DEVICE_PATH)/rootdir/system/etc/mixer_paths.xml:system/etc/mixer_paths.xml \
-    $(DEVICE_PATH)/rootdir/system/etc/thermanager.xml:system/etc/thermanager.xml \
     $(DEVICE_PATH)/rootdir/system/etc/sensors/sensor_def_qcomdev.conf:system/etc/sensors/sensor_def_qcomdev.conf
 
 # Device Specific Permissions
@@ -45,9 +44,9 @@ PRODUCT_PACKAGES += \
     android.hardware.light@2.0-impl \
     android.hardware.light@2.0-service
 
-# Simple PowerHAL
+# Qcom PowerHAL
 PRODUCT_PACKAGES += \
-    power.togari
+    power.msm8974
 
 # Power HIDL interfaces
 PRODUCT_PACKAGES += \

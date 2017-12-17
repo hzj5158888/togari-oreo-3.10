@@ -84,12 +84,6 @@ service per_proxy /vendor/bin/pm-proxy
     group system net_raw
     disabled
 
-service msm_irqbalance /vendor/bin/msm_irqbalance -f /system/etc/msm_irqbalance.conf
-    socket msm_irqbalance seqpacket 660 root system
-    class core
-    user root
-    group root
-
 # QCOM sensors
 service sensors /vendor/bin/sensors.qcom
     class main
@@ -112,16 +106,24 @@ service adsprpcd /vendor/bin/adsprpcd
    user media
    group media
 
-# OSS thermal management
-service thermanager /vendor/bin/thermanager /system/etc/thermanager.xml
-    class main
-    user root
-    group root
-
 # Offline charger
 service charger /sbin/healthd -c
     class charger
     critical
+
+service mpdecision /system/bin/mpdecision --avg_comp
+   class main
+   user root
+   group root readproc
+   disabled
+
+service thermal-engine /vendor/bin/thermal-engine
+   class main
+   user root
+   socket thermal-send-client stream 0666 system system
+   socket thermal-recv-client stream 0660 system system
+   socket thermal-recv-passive-client stream 0666 system system
+   group root
 
 # OSS time
 service timekeep /vendor/bin/timekeep restore

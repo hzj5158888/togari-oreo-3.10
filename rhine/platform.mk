@@ -49,14 +49,14 @@ PRODUCT_COPY_FILES += \
     $(SONY_ROOT)/system/usr/keylayout/gpio-keys.kl:system/usr/keylayout/gpio-keys.kl \
     $(SONY_ROOT)/system/usr/keylayout/mhl-rcp.kl:system/usr/keylayout/mhl-rcp.kl
 
-# RQBalance-PowerHAL configuration
-PRODUCT_COPY_FILES += \
-    $(SONY_ROOT)/system/etc/rqbalance_config.xml:system/etc/rqbalance_config.xml
-
 # Device Specific Hardware
 PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/com.nxp.mifare.xml:system/etc/permissions/com.nxp.mifare.xml \
-    frameworks/native/data/etc/com.android.nfc_extras.xml:system/etc/permissions/com.android.nfc_extras.xml
+    frameworks/native/data/etc/com.android.nfc_extras.xml:system/etc/permissions/com.android.nfc_extras.xml \
+
+# Thermal-engine
+PRODUCT_COPY_FILES += \
+    $(SONY_ROOT)/system/etc/thermal-engine-8974.conf:system/etc/thermal-engine-8974.conf
 
 # Platform Init
 PRODUCT_PACKAGES += \

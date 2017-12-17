@@ -178,7 +178,6 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     timekeep \
     TimeKeep \
-    thermanager \
     macaddrsetup
 
 # Wifi HAL
@@ -246,10 +245,6 @@ PRODUCT_PACKAGES += \
     fs_config_files \
     fs_config_dirs
 
-# librqbalance
-PRODUCT_PACKAGES += \
-    librqbalance
-
 # Vibrator HIDL interfaces
 PRODUCT_PACKAGES += \
     android.hardware.vibrator@1.0-impl \
@@ -263,9 +258,13 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     netutils-wrapper-1.0
 
-# librqbalance enablement
+# qti
+PRODUCT_PACKAGES += \
+    libqti-perfd-client
+
+# perf api
 PRODUCT_PROPERTY_OVERRIDES += \
-    ro.vendor.extension_library=/vendor/lib/librqbalance.so
+    ro.vendor.extension_library=/vendor/lib/libqti-perfd-client.so
 
 # APN list
 PRODUCT_COPY_FILES += \
