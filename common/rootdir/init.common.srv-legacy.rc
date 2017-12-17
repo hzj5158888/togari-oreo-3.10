@@ -43,6 +43,7 @@ service rmt_storage /vendor/bin/rmt_storage
     class core
     user root
     group system wakelock
+    ioprio rt 0
     shutdown critical
 
 # QCOM prop
@@ -128,7 +129,7 @@ service thermal-engine /vendor/bin/thermal-engine
 # OSS time
 service timekeep /vendor/bin/timekeep restore
     class late_start
-    user root
+    user root system
     group root
     oneshot
 

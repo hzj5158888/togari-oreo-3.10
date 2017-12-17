@@ -90,6 +90,9 @@ TARGET_KEYMASTER_WAIT_FOR_QSEE := true
 # Fixes Wifi-Mobile Data toggle issue
 MALLOC_SVELTE := true
 
+# Power
+TARGET_USES_INTERACTION_BOOST := true
+
 # Init
 #TARGET_INIT_VENDOR_LIB := libinit_rhine
 
