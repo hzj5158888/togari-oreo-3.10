@@ -1,585 +1,484 @@
 /*
- * Copyright (C) 2017 AngeloGioacchino Del Regno <kholk11@gmail.com>
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ * *    * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *     * Neither the name of The Linux Foundation nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+#define LOG_NIDEBUG 0
 
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <dlfcn.h>
 #include <fcntl.h>
+#include <dlfcn.h>
 #include <stdlib.h>
-#include <assert.h>
 
-#include <private/android_filesystem_config.h>
+#define LOG_TAG "QCOM PowerHAL"
 #include <utils/Log.h>
-
 #include <hardware/hardware.h>
 #include <hardware/power.h>
 
-#include "power.h"
-#include "rqbalance_halext.h"
+#include "utils.h"
+#include "metadata-defs.h"
+#include "hint-data.h"
+#include "performance.h"
+#include "power-common.h"
 
-#define LOG_TAG "RQBalance-PowerHAL"
+static int saved_dcvs_cpu0_slack_max = -1;
+static int saved_dcvs_cpu0_slack_min = -1;
+static int saved_mpdecision_slack_max = -1;
+static int saved_mpdecision_slack_min = -1;
+static int saved_interactive_mode = -1;
+static int slack_node_rw_failed = 0;
+static int display_hint_sent;
+int display_boost;
 
-static struct rqbalance_params *rqb;
-static int hal_init_ok = false;
-static rqb_pwr_mode_t cur_pwrmode;
-
-/* Remove this when all platforms will be migrated? */
-static bool param_perf_supported = true;
-
-/* PowerServer */
-static int sock;
-static int clientsock;
-static struct sockaddr_un server_addr;
-static pthread_t powerserver_thread;
-static bool psthread_run = true;
-
-/* XML Configuration support */
-extern int parse_xml_data(char* filepath,
-            char* node, struct rqbalance_params *therqb);
-
-#define UNUSED __attribute__((unused))
-
-/*
- * sysfs_write - Write string to sysfs path
- *
- * \param path - Path to the sysfs file
- * \param s    - String to write
- * \return Returns success (true) or failure (false)
- */
-static bool sysfs_write(char *path, char *s)
+static void power_init(struct power_module *module)
 {
-    char buf[80];
-    int len;
-    int fd = open(path, O_WRONLY);
-    bool ret = true;
+    ALOGI("QCOM power HAL initing.");
 
-    if (fd < 0) {
-        strerror_r(errno, buf, sizeof(buf));
-        ALOGE("Error opening %s: %s\n", path, buf);
-        return false;
+    int fd;
+    char buf[10] = {0};
+
+    fd = open("/sys/devices/soc0/soc_id", O_RDONLY);
+    if (fd >= 0) {
+        if (read(fd, buf, sizeof(buf) - 1) == -1) {
+            ALOGW("Unable to read soc_id");
+        } else {
+            int soc_id = atoi(buf);
+            if (soc_id == 194 || (soc_id >= 208 && soc_id <= 218)) {
+                display_boost = 1;
+            }
+        }
+        close(fd);
     }
-
-    len = write(fd, s, strlen(s));
-    if (len < 0) {
-        strerror_r(errno, buf, sizeof(buf));
-        ALOGE("Error writing to %s: %s\n", path, buf);
-
-        ret = false;
-    }
-
-    close(fd);
-
-    return ret;
 }
 
-/*
- * rqb_param_string - Get power mode string
- *
- * \param pwrmode - RQBalance Power Mode (from enum rqb_pwr_mode_t)
- * \param compat - Switch for compatibility string
- * \return Returns compat or new power mode string
- */
-static char* rqb_param_string(rqb_pwr_mode_t pwrmode, bool compat)
+static void process_video_decode_hint(void *metadata)
 {
-    char* type_string;
-    char* compat_string;
+    char governor[80];
+    struct video_decode_metadata_t video_decode_metadata;
 
-    switch (pwrmode) {
-        case POWER_MODE_BATTERYSAVE:
-            type_string = "batterysave";
-            compat_string = "low";
-            break;
-        case POWER_MODE_BALANCED:
-            type_string = "balanced";
-            compat_string = "normal";
-            break;
-        case POWER_MODE_PERFORMANCE:
-            type_string = "performance";
-            compat_string = "perf";
-            break;
-        case POWER_MODE_OMXDECODE:
-            type_string = "video_decoding";
-            compat_string = "vdec";
-            break;
-        case POWER_MODE_OMXENCODE:
-            type_string = "video_encoding";
-            compat_string = "venc";
-        default:
-            return "unknown";
-    }
+    if (get_scaling_governor(governor, sizeof(governor)) == -1) {
+        ALOGE("Can't obtain scaling governor.");
 
-    if (compat)
-        return compat_string;
-
-    return type_string;
-}
-
-/*
- * print_parameters - Print PowerHAL RQBalance parameters to ALOG
- *
- * \param pwrmode - RQBalance Power Mode (from enum rqb_pwr_mode_t)
- */
-static void print_parameters(rqb_pwr_mode_t pwrmode)
-{
-    char* mode_string = rqb_param_string(pwrmode, false);
-    struct rqbalance_params *cur_params = &rqb[pwrmode];
-
-    ALOGI("Parameters for %s mode:", mode_string);
-    ALOGI("Minimum cores:       %s", cur_params->min_cpus);
-    ALOGI("Maximum cores:       %s", cur_params->max_cpus);
-    ALOGI("Upcore thresholds:   %s", cur_params->up_thresholds);
-    ALOGI("Downcore thresholds: %s", cur_params->down_thresholds);
-    ALOGI("Balance level:       %s", cur_params->balance_level);
-}
-
-/*
- * _set_power_mode - Writes power configuration to the RQBalance driver
- *
- * \param rqparm - RQBalance Power Mode parameters struct
- */
-static void __set_power_mode(struct rqbalance_params *rqparm)
-{
-    bool ret, cpus_error;
-    short retry = 0;
-
-
-    sysfs_write(SYS_UPCORE_THRESH, rqparm->up_thresholds);
-    sysfs_write(SYS_DNCORE_THRESH, rqparm->down_thresholds);
-    sysfs_write(SYS_BALANCE_LVL, rqparm->balance_level);
-
-set_cpu:
-    ret = sysfs_write(SYS_MAX_CPUS, rqparm->max_cpus);
-    if (!ret)
-        cpus_error = true;
-
-    ret = sysfs_write(SYS_MIN_CPUS, rqparm->min_cpus);
-    if (!ret)
-        cpus_error = true;
-
-    if (cpus_error) {
-        cpus_error = false;
-        retry++;
-
-        if (retry < 2)
-            goto set_cpu;
-    }
-
-
-    return;
-}
-
-/*
- * __set_special_power_mode - Writes special power configuration to the
- *                            RQBalance driver from extended control
- *                            and other external libraries
- *
- * \param max_cpus - Maximum number of plugged in CPUS/cores
- * \param min_cpus - Minimum number of plugged in CPUs/cores
- * \param up_thresholds - Upcore thresholds
- * \param down_thresholds - Downcore thresholds
- * \param balance_level - Frequency/cores balancement level
- */
-void __set_special_power_mode(char* max_cpus, char* min_cpus,
-                              char* up_thresholds, char* down_thresholds,
-                              char* balance_level) {
-    struct rqbalance_params *setparam;
-    struct rqbalance_params *current = &rqb[cur_pwrmode];
-
-    setparam = malloc(sizeof(struct rqbalance_params));
-
-    if (max_cpus)
-        memcpy(setparam->max_cpus, max_cpus,
-               strlen(max_cpus));
-    else
-        memcpy(setparam->max_cpus, current->max_cpus,
-               strlen(current->max_cpus));
-
-    if (min_cpus)
-        memcpy(setparam->min_cpus, min_cpus,
-               strlen(min_cpus));
-    else
-        memcpy(setparam->min_cpus, current->min_cpus,
-               strlen(current->min_cpus));
-
-    if (up_thresholds)
-        memcpy(setparam->up_thresholds, up_thresholds,
-               strlen(up_thresholds));
-    else
-        memcpy(setparam->up_thresholds, current->up_thresholds,
-               strlen(current->up_thresholds));
-
-    if (down_thresholds)
-        memcpy(setparam->down_thresholds, down_thresholds,
-               strlen(down_thresholds));
-    else
-        memcpy(setparam->down_thresholds, current->down_thresholds,
-               strlen(current->down_thresholds));
-
-    if (balance_level)
-        memcpy(setparam->balance_level, balance_level,
-               strlen(balance_level));
-    else
-        memcpy(setparam->balance_level, current->balance_level,
-               strlen(current->balance_level));
-
-    __set_power_mode(setparam);
-
-    free(setparam);
-
-    return;
-}
-
-/*
- * set_power_mode - Writes power configuration to the RQBalance driver
- *
- * \param mode - RQBalance Power Mode (from enum rqb_pwr_mode_t)
- */
-void set_power_mode(rqb_pwr_mode_t mode)
-{
-    char* mode_string = rqb_param_string(mode, false);
-
-    if (mode == POWER_MODE_PERFORMANCE && !param_perf_supported)
         return;
+    }
 
-    ALOGI("Setting %s mode", mode_string);
+    if (metadata) {
+        ALOGI("Processing video decode hint. Metadata: %s", (char *)metadata);
+    }
 
-    __set_power_mode(&rqb[mode]);
+    /* Initialize encode metadata struct fields. */
+    memset(&video_decode_metadata, 0, sizeof(struct video_decode_metadata_t));
+    video_decode_metadata.state = -1;
+    video_decode_metadata.hint_id = DEFAULT_VIDEO_DECODE_HINT_ID;
 
-    cur_pwrmode = mode;
-}
-
-static void *powerserver_looper(void *unusedvar UNUSED)
-{
-    int ret;
-    int32_t halext_reply = -EINVAL;
-    uint8_t retry;
-    socklen_t clientlen = sizeof(struct sockaddr_un);
-    struct sockaddr_un client_addr;
-    struct rqbalance_halext_params extparams;
-
-reloop:
-    ALOGI("PowerServer is waiting for connection...");
-    if (clientsock)
-        close(clientsock);
-    retry = 0;
-    while (((clientsock = accept(sock, (struct sockaddr*)&client_addr,
-            &clientlen)) > 0) && (psthread_run == true))
-    {
-        ret = recv(clientsock, &extparams,
-              sizeof(struct rqbalance_halext_params), 0);
-        if (!ret) {
-            ALOGE("Cannot receive data from client");
-            goto reloop;
+    if (metadata) {
+        if (parse_video_decode_metadata((char *)metadata, &video_decode_metadata) ==
+            -1) {
+            ALOGE("Error occurred while parsing metadata.");
+            return;
         }
-
-        if (ret != sizeof(struct rqbalance_halext_params)) {
-            ALOGE("Received data size mismatch!!");
-            goto reloop;
-        } else ret = 0;
-
-        if (extparams.acquire)
-             halext_reply = halext_perf_lock_acquire(&extparams);
-        else
-             halext_reply = halext_perf_lock_release(extparams.id);
-
-retry_send:
-	retry++;
-        ret = send(clientsock, &halext_reply, sizeof(halext_reply), 0);
-	if (ret == -1) {
-		halext_reply = -EINVAL;
-		if (retry < 50)
-			goto retry_send;
-		ALOGE("ERROR: Cannot send reply!!!");
-		goto reloop;
-	} else retry = 0;
-
-        if (clientsock)
-            close(clientsock);
-    }
-
-    ALOGI("PowerServer terminated.");
-    return NULL;
-}
-
-static int manage_powerserver(bool start)
-{
-    int ret;
-    struct stat st = {0};
-
-    if (start == false) {
-        psthread_run = false;
-        if (clientsock) {
-            shutdown(clientsock, SHUT_RDWR);
-            close(clientsock);
-        }
-        if (sock) {
-            shutdown(sock, SHUT_RDWR);
-            close(sock);
-        }
-
-        return 0;
-    }
-
-    psthread_run = true;
-
-    /* Create folder, if doesn't exist */
-    if (stat(POWERSERVER_DIR, &st) == -1) {
-        mkdir(POWERSERVER_DIR, 0773);
-    }
-
-    /* Get socket in the UNIX domain */
-    sock = socket(PF_UNIX, SOCK_SEQPACKET, 0);
-    if (sock < 0) {
-        ALOGE("Could not create the socket");
-        return -EPROTO;
-    }
-
-    /* Create address */
-    memset(&server_addr, 0, sizeof(struct sockaddr_un));
-    server_addr.sun_family = AF_UNIX;
-    strcpy(server_addr.sun_path, POWERSERVER_SOCKET);
-
-    /* Free the existing socket file, if any */
-    unlink(POWERSERVER_SOCKET);
-
-    /* Bind the address to the socket */
-    ret = bind(sock, (struct sockaddr*)&server_addr,
-               sizeof(struct sockaddr_un));
-    if (ret != 0) {
-        ALOGE("Cannot bind socket");
-        return -EINVAL;
-    }
-
-    /* Set socket permissions */
-    chown(server_addr.sun_path, AID_ROOT, AID_SYSTEM);
-    chmod(server_addr.sun_path, 0666);
-
-    /* Listen on this socket */
-    ret = listen(sock, POWERSERVER_MAXCONN);
-    if (ret != 0) {
-        ALOGE("Cannot listen on socket");
-        return ret;
-    }
-
-    ret = pthread_create(&powerserver_thread, NULL, powerserver_looper, NULL);
-    if (ret != 0) {
-        ALOGE("Cannot create PowerServer thread");
-        return -ENXIO;
-    }
-
-    return 0;
-}
-
-static bool init_all_rqb_params(void)
-{
-    int i, ret;
-
-    rqb = malloc(sizeof(struct rqbalance_params) * POWER_MODE_MAX);
-    assert(rqb != NULL);
-
-    for (i = 0; i < POWER_MODE_MAX; i++)
-    {
-        ret = parse_xml_data(RQBHAL_CONF_FILE,
-                rqb_param_string(i, false), &rqb[i]);
-        if (ret < 0) {
-            ALOGE("Cannot parse configuration for %s mode!!!",
-                  rqb_param_string(i, false));
-        }
-    }
-
-    return ret;
-}
-
-/*
- * power_init - Initializes the PowerHAL structs and configurations
- */
-static void power_init(struct power_module *module UNUSED)
-{
-    int ret, dbg_lvl;
-    int i;
-    char ext_lib_path[127];
-    char propval[PROPERTY_VALUE_MAX];
-    struct rqbalance_params *rqbparm;
-
-    ALOGI("Initializing PowerHAL...");
-
-    ret = init_all_rqb_params();
-    if (ret < 0)
-        goto general_error;
-
-    if (!param_perf_supported)
-        ALOGW("No performance parameters. Going on.");
-
-    hal_init_ok = true;
-
-    property_get(PROP_DEBUGLVL, propval, "0");
-    dbg_lvl = atoi(propval);
-
-    if (dbg_lvl > 0) {
-        ALOGW("WARNING: Starting in debug mode");
-        for (i = 0; i < POWER_MODE_MAX; i++) {
-	        print_parameters(i);
-	}
     } else {
-        ALOGI("Loading with debug off. To turn on, set %s", PROP_DEBUGLVL);
+        return;
     }
 
-    /* Init thermal_max_cpus and default profile */
-    rqbparm = &rqb[POWER_MODE_BALANCED];
-    sysfs_write(SYS_THERM_CPUS, rqbparm->max_cpus);
-    set_power_mode(POWER_MODE_BALANCED);
+    if (video_decode_metadata.state == 1) {
+        if ((strncmp(governor, ONDEMAND_GOVERNOR, strlen(ONDEMAND_GOVERNOR)) == 0) &&
+                (strlen(governor) == strlen(ONDEMAND_GOVERNOR))) {
+            int resource_values[] = {THREAD_MIGRATION_SYNC_OFF};
 
-    ALOGI("Initialized successfully.");
+            perform_hint_action(video_decode_metadata.hint_id,
+                    resource_values, sizeof(resource_values)/sizeof(resource_values[0]));
+        } else if ((strncmp(governor, INTERACTIVE_GOVERNOR, strlen(INTERACTIVE_GOVERNOR)) == 0) &&
+                (strlen(governor) == strlen(INTERACTIVE_GOVERNOR))) {
+            int resource_values[] = {TR_MS_30, HISPEED_LOAD_90, HS_FREQ_1026, THREAD_MIGRATION_SYNC_OFF};
 
-    ret = manage_powerserver(true);
-    if (ret == 0)
-        ALOGI("PowerHAL PowerServer started");
-    else
-        ALOGE("Could not start PowerHAL PowerServer");
-
-    return;
-
-general_error:
-    ALOGE("PowerHAL initialization FAILED.");
-
-    return;
+            perform_hint_action(video_decode_metadata.hint_id,
+                    resource_values, sizeof(resource_values)/sizeof(resource_values[0]));
+        }
+    } else if (video_decode_metadata.state == 0) {
+        if ((strncmp(governor, ONDEMAND_GOVERNOR, strlen(ONDEMAND_GOVERNOR)) == 0) &&
+                (strlen(governor) == strlen(ONDEMAND_GOVERNOR))) {
+        } else if ((strncmp(governor, INTERACTIVE_GOVERNOR, strlen(INTERACTIVE_GOVERNOR)) == 0) &&
+                (strlen(governor) == strlen(INTERACTIVE_GOVERNOR))) {
+            undo_hint_action(video_decode_metadata.hint_id);
+        }
+    }
 }
 
-void power_init_ext(void)
+static void process_video_encode_hint(void *metadata)
 {
-    if (init_all_rqb_params())
-        hal_init_ok = true;
-}
+    char governor[80];
+    struct video_encode_metadata_t video_encode_metadata;
 
-/*
- * power_hint - Passes hints on power requirements from userspace
- *
- * \param module - This HAL's info sym struct
- * \param hint - Power hint (from power_hint_t)
- * \param data - Any kind of supplementary variable relative to the hint
- */
-static void power_hint(struct power_module *module UNUSED, power_hint_t hint,
-                            void *data)
-{
-    if (!hal_init_ok)
+    if (get_scaling_governor(governor, sizeof(governor)) == -1) {
+        ALOGE("Can't obtain scaling governor.");
+
         return;
+    }
 
-    switch (hint) {
+    /* Initialize encode metadata struct fields. */
+    memset(&video_encode_metadata, 0, sizeof(struct video_encode_metadata_t));
+    video_encode_metadata.state = -1;
+    video_encode_metadata.hint_id = DEFAULT_VIDEO_ENCODE_HINT_ID;
+
+    if (metadata) {
+        if (parse_video_encode_metadata((char *)metadata, &video_encode_metadata) ==
+            -1) {
+            ALOGE("Error occurred while parsing metadata.");
+            return;
+        }
+    } else {
+        return;
+    }
+
+    if (video_encode_metadata.state == 1) {
+        if ((strncmp(governor, ONDEMAND_GOVERNOR, strlen(ONDEMAND_GOVERNOR)) == 0) &&
+                (strlen(governor) == strlen(ONDEMAND_GOVERNOR))) {
+            int resource_values[] = {IO_BUSY_OFF, SAMPLING_DOWN_FACTOR_1, THREAD_MIGRATION_SYNC_OFF};
+
+            perform_hint_action(video_encode_metadata.hint_id,
+                resource_values, sizeof(resource_values)/sizeof(resource_values[0]));
+        } else if ((strncmp(governor, INTERACTIVE_GOVERNOR, strlen(INTERACTIVE_GOVERNOR)) == 0) &&
+                (strlen(governor) == strlen(INTERACTIVE_GOVERNOR))) {
+            int resource_values[] = {TR_MS_30, HISPEED_LOAD_90, HS_FREQ_1026, THREAD_MIGRATION_SYNC_OFF,
+                INTERACTIVE_IO_BUSY_OFF};
+
+            perform_hint_action(video_encode_metadata.hint_id,
+                    resource_values, sizeof(resource_values)/sizeof(resource_values[0]));
+        }
+    } else if (video_encode_metadata.state == 0) {
+        if ((strncmp(governor, ONDEMAND_GOVERNOR, strlen(ONDEMAND_GOVERNOR)) == 0) &&
+                (strlen(governor) == strlen(ONDEMAND_GOVERNOR))) {
+            undo_hint_action(video_encode_metadata.hint_id);
+        } else if ((strncmp(governor, INTERACTIVE_GOVERNOR, strlen(INTERACTIVE_GOVERNOR)) == 0) &&
+                (strlen(governor) == strlen(INTERACTIVE_GOVERNOR))) {
+            undo_hint_action(video_encode_metadata.hint_id);
+        }
+    }
+}
+
+int __attribute__ ((weak)) power_hint_override(struct power_module *module, power_hint_t hint,
+        void *data)
+{
+    return HINT_NONE;
+}
+
+static void power_hint(struct power_module *module, power_hint_t hint,
+        void *data)
+{
+    /* Check if this hint has been overridden. */
+    if (power_hint_override(module, hint, data) == HINT_HANDLED) {
+        /* The power_hint has been handled. We can skip the rest. */
+        return;
+    }
+
+    switch(hint) {
         case POWER_HINT_VSYNC:
-            break;
+        break;
+        case POWER_HINT_INTERACTION:
+        {
+            int resources[] = {0x702, 0x20F, 0x30F};
+            int duration = 3000;
 
-        case POWER_HINT_LOW_POWER:
-            if (data) {
-                set_power_mode(POWER_MODE_BATTERYSAVE);
-            } else {
-                set_power_mode(POWER_MODE_BALANCED);
-            }
-            break;
-
-        case POWER_HINT_VR_MODE:
-            if (data && param_perf_supported) {
-                set_power_mode(POWER_MODE_PERFORMANCE);
-            } else {
-                set_power_mode(POWER_MODE_BALANCED);
-            }
-            break;
-
-        case POWER_HINT_LAUNCH:
-            if (data && param_perf_supported) {
-                set_power_mode(POWER_MODE_PERFORMANCE);
-            } else {
-                set_power_mode(POWER_MODE_BALANCED);
-            }
-            break;
-
-        default:
-            break;
+            interaction(duration, sizeof(resources)/sizeof(resources[0]), resources);
+        }
+        break;
+        case POWER_HINT_VIDEO_ENCODE:
+            process_video_encode_hint(data);
+        break;
+        case POWER_HINT_VIDEO_DECODE:
+            process_video_decode_hint(data);
+        break;
     }
-
-    return;
 }
 
-/*
- * set_interactive - Performs power management actions for awake/sleep
- *
- * \param module - This HAL's info sym struct
- * \param on - 1: System awake 0: System asleep
- */
-static void set_interactive(struct power_module *module UNUSED, int on)
+int __attribute__ ((weak)) set_interactive_override(struct power_module *module, int on)
 {
-    if (!hal_init_ok)
+    return HINT_NONE;
+}
+
+void set_interactive(struct power_module *module, int on)
+{
+    char governor[80];
+    char tmp_str[NODE_MAX];
+    struct video_encode_metadata_t video_encode_metadata;
+    int rc;
+
+    if (set_interactive_override(module, on) == HINT_HANDLED) {
         return;
+    }
+
+    ALOGI("Got set_interactive hint");
+
+    if (get_scaling_governor(governor, sizeof(governor)) == -1) {
+        ALOGE("Can't obtain scaling governor.");
+
+        return;
+    }
 
     if (!on) {
-        ALOGI("Device is asleep.");
+        /* Display off. */
+        if ((strncmp(governor, ONDEMAND_GOVERNOR, strlen(ONDEMAND_GOVERNOR)) == 0) &&
+                (strlen(governor) == strlen(ONDEMAND_GOVERNOR))) {
+            int resource_values[] = {DISPLAY_OFF, MS_500, THREAD_MIGRATION_SYNC_OFF};
 
-	/* Stop PowerServer: we don't need it while sleeping */
-        manage_powerserver(false);
+            if (!display_hint_sent) {
+                perform_hint_action(DISPLAY_STATE_HINT_ID,
+                        resource_values, sizeof(resource_values)/sizeof(resource_values[0]));
+                display_hint_sent = 1;
+            }
+        } else if ((strncmp(governor, INTERACTIVE_GOVERNOR, strlen(INTERACTIVE_GOVERNOR)) == 0) &&
+                (strlen(governor) == strlen(INTERACTIVE_GOVERNOR))) {
+            int resource_values[] = {TR_MS_50, THREAD_MIGRATION_SYNC_OFF};
 
-        set_power_mode(POWER_MODE_BATTERYSAVE);
+            if (!display_hint_sent) {
+                perform_hint_action(DISPLAY_STATE_HINT_ID,
+                        resource_values, sizeof(resource_values)/sizeof(resource_values[0]));
+                display_hint_sent = 1;
+            }
+        } else if ((strncmp(governor, MSMDCVS_GOVERNOR, strlen(MSMDCVS_GOVERNOR)) == 0) &&
+                (strlen(governor) == strlen(MSMDCVS_GOVERNOR))) {
+            if (saved_interactive_mode == 1){
+                /* Display turned off. */
+                if (sysfs_read(DCVS_CPU0_SLACK_MAX_NODE, tmp_str, NODE_MAX - 1)) {
+                    if (!slack_node_rw_failed) {
+                        ALOGE("Failed to read from %s", DCVS_CPU0_SLACK_MAX_NODE);
+                    }
+
+                    rc = 1;
+                } else {
+                    saved_dcvs_cpu0_slack_max = atoi(tmp_str);
+                }
+
+                if (sysfs_read(DCVS_CPU0_SLACK_MIN_NODE, tmp_str, NODE_MAX - 1)) {
+                    if (!slack_node_rw_failed) {
+                        ALOGE("Failed to read from %s", DCVS_CPU0_SLACK_MIN_NODE);
+                    }
+
+                    rc = 1;
+                } else {
+                    saved_dcvs_cpu0_slack_min = atoi(tmp_str);
+                }
+
+                if (sysfs_read(MPDECISION_SLACK_MAX_NODE, tmp_str, NODE_MAX - 1)) {
+                    if (!slack_node_rw_failed) {
+                        ALOGE("Failed to read from %s", MPDECISION_SLACK_MAX_NODE);
+                    }
+
+                    rc = 1;
+                } else {
+                    saved_mpdecision_slack_max = atoi(tmp_str);
+                }
+
+                if (sysfs_read(MPDECISION_SLACK_MIN_NODE, tmp_str, NODE_MAX - 1)) {
+                    if(!slack_node_rw_failed) {
+                        ALOGE("Failed to read from %s", MPDECISION_SLACK_MIN_NODE);
+                    }
+
+                    rc = 1;
+                } else {
+                    saved_mpdecision_slack_min = atoi(tmp_str);
+                }
+
+                /* Write new values. */
+                if (saved_dcvs_cpu0_slack_max != -1) {
+                    snprintf(tmp_str, NODE_MAX, "%d", 10 * saved_dcvs_cpu0_slack_max);
+
+                    if (sysfs_write(DCVS_CPU0_SLACK_MAX_NODE, tmp_str) != 0) {
+                        if (!slack_node_rw_failed) {
+                            ALOGE("Failed to write to %s", DCVS_CPU0_SLACK_MAX_NODE);
+                        }
+
+                        rc = 1;
+                    }
+                }
+
+                if (saved_dcvs_cpu0_slack_min != -1) {
+                    snprintf(tmp_str, NODE_MAX, "%d", 10 * saved_dcvs_cpu0_slack_min);
+
+                    if (sysfs_write(DCVS_CPU0_SLACK_MIN_NODE, tmp_str) != 0) {
+                        if(!slack_node_rw_failed) {
+                            ALOGE("Failed to write to %s", DCVS_CPU0_SLACK_MIN_NODE);
+                        }
+
+                        rc = 1;
+                    }
+                }
+
+                if (saved_mpdecision_slack_max != -1) {
+                    snprintf(tmp_str, NODE_MAX, "%d", 10 * saved_mpdecision_slack_max);
+
+                    if (sysfs_write(MPDECISION_SLACK_MAX_NODE, tmp_str) != 0) {
+                        if(!slack_node_rw_failed) {
+                            ALOGE("Failed to write to %s", MPDECISION_SLACK_MAX_NODE);
+                        }
+
+                        rc = 1;
+                    }
+                }
+
+                if (saved_mpdecision_slack_min != -1) {
+                    snprintf(tmp_str, NODE_MAX, "%d", 10 * saved_mpdecision_slack_min);
+
+                    if (sysfs_write(MPDECISION_SLACK_MIN_NODE, tmp_str) != 0) {
+                        if(!slack_node_rw_failed) {
+                            ALOGE("Failed to write to %s", MPDECISION_SLACK_MIN_NODE);
+                        }
+
+                        rc = 1;
+                    }
+                }
+            }
+
+            slack_node_rw_failed = rc;
+        }
     } else {
-        ALOGI("Device is awake.");
+        /* Display on. */
+        if ((strncmp(governor, ONDEMAND_GOVERNOR, strlen(ONDEMAND_GOVERNOR)) == 0) &&
+                (strlen(governor) == strlen(ONDEMAND_GOVERNOR))) {
+            undo_hint_action(DISPLAY_STATE_HINT_ID);
+            display_hint_sent = 0;
+        } else if ((strncmp(governor, INTERACTIVE_GOVERNOR, strlen(INTERACTIVE_GOVERNOR)) == 0) &&
+                (strlen(governor) == strlen(INTERACTIVE_GOVERNOR))) {
+            undo_hint_action(DISPLAY_STATE_HINT_ID);
+            display_hint_sent = 0;
+        } else if ((strncmp(governor, MSMDCVS_GOVERNOR, strlen(MSMDCVS_GOVERNOR)) == 0) && 
+                (strlen(governor) == strlen(MSMDCVS_GOVERNOR))) {
+            if (saved_interactive_mode == -1 || saved_interactive_mode == 0) {
+                /* Display turned on. Restore if possible. */
+                if (saved_dcvs_cpu0_slack_max != -1) {
+                    snprintf(tmp_str, NODE_MAX, "%d", saved_dcvs_cpu0_slack_max);
 
-	/* Restart PowerServer */
-        if (!psthread_run)
-            manage_powerserver(true);
+                    if (sysfs_write(DCVS_CPU0_SLACK_MAX_NODE, tmp_str) != 0) {
+                        if (!slack_node_rw_failed) {
+                            ALOGE("Failed to write to %s", DCVS_CPU0_SLACK_MAX_NODE);
+                        }
 
-        set_power_mode(POWER_MODE_BALANCED);
+                        rc = 1;
+                    }
+                }
+
+                if (saved_dcvs_cpu0_slack_min != -1) {
+                    snprintf(tmp_str, NODE_MAX, "%d", saved_dcvs_cpu0_slack_min);
+
+                    if (sysfs_write(DCVS_CPU0_SLACK_MIN_NODE, tmp_str) != 0) {
+                        if (!slack_node_rw_failed) {
+                            ALOGE("Failed to write to %s", DCVS_CPU0_SLACK_MIN_NODE);
+                        }
+
+                        rc = 1;
+                    }
+                }
+
+                if (saved_mpdecision_slack_max != -1) {
+                    snprintf(tmp_str, NODE_MAX, "%d", saved_mpdecision_slack_max);
+
+                    if (sysfs_write(MPDECISION_SLACK_MAX_NODE, tmp_str) != 0) {
+                        if (!slack_node_rw_failed) {
+                            ALOGE("Failed to write to %s", MPDECISION_SLACK_MAX_NODE);
+                        }
+
+                        rc = 1;
+                    }
+                }
+
+                if (saved_mpdecision_slack_min != -1) {
+                    snprintf(tmp_str, NODE_MAX, "%d", saved_mpdecision_slack_min);
+
+                    if (sysfs_write(MPDECISION_SLACK_MIN_NODE, tmp_str) != 0) {
+                        if (!slack_node_rw_failed) {
+                            ALOGE("Failed to write to %s", MPDECISION_SLACK_MIN_NODE);
+                        }
+
+                        rc = 1;
+                    }
+                }
+            }
+
+            slack_node_rw_failed = rc;
+        }
     }
+
+    saved_interactive_mode = !!on;
 }
 
-/*
- * set_feature - Manages extra features
- *
- * \param module - This HAL's info sym struct
- * \param feature - Extra feature (from feature_t)
- * \param state - 1: enable 0: disable
- */
-void set_feature(struct power_module *module UNUSED, feature_t feature, int state)
+static int power_open(const hw_module_t* module, const char* name,
+                    hw_device_t** device)
 {
-#ifdef TAP_TO_WAKE_NODE
-    if (feature == POWER_FEATURE_DOUBLE_TAP_TO_WAKE) {
-            ALOGI("Double tap to wake is %s.", state ? "enabled" : "disabled");
-            sysfs_write(TAP_TO_WAKE_NODE, state ? "1" : "0");
-        return;
+    ALOGD("%s: enter; name=%s", __FUNCTION__, name);
+    int retval = 0; /* 0 is ok; -1 is error */
+
+    if (strcmp(name, POWER_HARDWARE_MODULE_ID) == 0) {
+        power_module_t *dev = (power_module_t *)calloc(1,
+                sizeof(power_module_t));
+
+        if (dev) {
+            /* Common hw_device_t fields */
+            dev->common.tag = HARDWARE_DEVICE_TAG;
+            dev->common.module_api_version = POWER_MODULE_API_VERSION_0_2;
+            dev->common.hal_api_version = HARDWARE_HAL_API_VERSION;
+
+            dev->init = power_init;
+            dev->powerHint = power_hint;
+            dev->setInteractive = set_interactive;
+            dev->get_number_of_platform_modes = NULL;
+            dev->get_platform_low_power_stats = NULL;
+            dev->get_voter_list = NULL;
+
+            *device = (hw_device_t*)dev;
+        } else
+            retval = -ENOMEM;
+    } else {
+        retval = -EINVAL;
     }
-#endif
+
+    ALOGD("%s: exit %d", __FUNCTION__, retval);
+    return retval;
 }
 
 static struct hw_module_methods_t power_module_methods = {
-    .open = NULL,
+    .open = power_open,
 };
 
 struct power_module HAL_MODULE_INFO_SYM = {
     .common = {
         .tag = HARDWARE_MODULE_TAG,
-        .module_api_version = POWER_MODULE_API_VERSION_0_3,
+        .module_api_version = POWER_MODULE_API_VERSION_0_2,
         .hal_api_version = HARDWARE_HAL_API_VERSION,
         .id = POWER_HARDWARE_MODULE_ID,
-        .name = "RQBalance-based Power HAL",
-        .author = "AngeloGioacchino Del Regno",
+        .name = "QCOM Power HAL",
+        .author = "Qualcomm",
         .methods = &power_module_methods,
     },
 
     .init = power_init,
     .powerHint = power_hint,
     .setInteractive = set_interactive,
-    .setFeature = set_feature,
 };

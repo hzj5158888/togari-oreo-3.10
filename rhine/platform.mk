@@ -28,9 +28,9 @@ $(call inherit-product, frameworks/native/build/phone-xhdpi-2048-dalvik-heap.mk)
 
 # Media
 PRODUCT_COPY_FILES += \
-    $(SONY_ROOT)/system/etc/audio_policy.conf:system/etc/audio_policy.conf \
-    $(SONY_ROOT)/system/etc/media_codecs.xml:system/etc/media_codecs.xml \
-    $(SONY_ROOT)/system/etc/media_profiles.xml:system/etc/media_profiles.xml
+    $(SONY_ROOT)/system/etc/audio_policy.conf:system/vendor/etc/audio_policy.conf \
+    $(SONY_ROOT)/system/etc/media_codecs.xml:system/vendor/etc/media_codecs.xml \
+    $(SONY_ROOT)/system/etc/media_profiles.xml:system/vendor/etc/media_profiles.xml
 
 # WLAN
 PRODUCT_COPY_FILES += \

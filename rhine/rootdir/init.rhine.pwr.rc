@@ -88,12 +88,6 @@ on property:init.svc.bootanim=stopped
     write /sys/class/kgsl/kgsl-3d0/devfreq/governor "msm-adreno-tz"
     write /dev/cpuctl/cpu.notify_on_migrate 1
 
-    # Configure the cpu-boost module
-    write /sys/module/cpu_boost/parameters/boost_ms 15
-    write /sys/module/cpu_boost/parameters/sync_threshold 1958400
-    write /sys/module/cpu_boost/parameters/input_boost_freq 1958400
-    write /sys/module/cpu_boost/parameters/input_boost_ms 20
-
     # Enable thermal
     write /sys/module/msm_thermal/core_control/enabled 1
 
