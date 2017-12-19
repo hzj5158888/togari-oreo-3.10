@@ -93,12 +93,23 @@ MALLOC_SVELTE := true
 # Power
 TARGET_USES_INTERACTION_BOOST := true
 
+# Nfc
+BOARD_NFC_CHIPSET := pn544
+
+# Egl
+BOARD_EGL_CFG := $(PLATFORM_COMMON_PATH)/rootdir/system/etc/egl.cfg
+
 # Init
 #TARGET_INIT_VENDOR_LIB := libinit_rhine
 
 # Vendor Interface Manifest
 DEVICE_MANIFEST_FILE := $(PLATFORM_COMMON_PATH)/manifest.xml
 DEVICE_MATRIX_FILE   := $(PLATFORM_COMMON_PATH)/compatibility_matrix.xml
+
+# Some of our vendor libs have text relocations
+TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS:= true
+TARGET_NEEDS_PLATFORM_TEXTRELS := \
+    $(TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS)
 
 # SELinux
 #BOARD_SEPOLICY_DIRS += $(PLATFORM_COMMON_PATH)/sepolicy_platform

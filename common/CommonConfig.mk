@@ -48,6 +48,8 @@ SF_START_GRAPHICS_ALLOCATOR_SERVICE := true
 TARGET_CONTINUOUS_SPLASH_ENABLED := true
 
 # Display
+TARGET_USES_GRALLOC1 := true
+TARGET_USES_GRALLOC1_ADAPTER := true
 NUM_FRAMEBUFFER_SURFACE_BUFFERS := 3
 MAX_EGL_CACHE_KEY_SIZE := 12*1024
 MAX_EGL_CACHE_SIZE := 2048*1024
@@ -77,11 +79,14 @@ BOARD_HAL_STATIC_LIBRARIES += libhealthd.$(TARGET_DEVICE)
 # Include an expanded selection of fonts
 EXTENDED_FONT_FOOTPRINT := true
 
-# Enable dex-preoptimization to speed up first boot sequence
+# Enable dex pre-opt to speed up initial boot
 ifeq ($(HOST_OS),linux)
-  ifneq ($(TARGET_BUILD_VARIANT),eng)
-    ifeq ($(WITH_DEXPREOPT),)
-      WITH_DEXPREOPT := true
+  ifeq ($(WITH_DEXPREOPT),)
+    WITH_DEXPREOPT := true
+    WITH_DEXPREOPT_PIC := true
+    ifneq ($(TARGET_BUILD_VARIANT),user)
+      # Retain classes.dex in APK's for non-user builds
+      DEX_PREOPT_DEFAULT := nostripping
     endif
   endif
 endif

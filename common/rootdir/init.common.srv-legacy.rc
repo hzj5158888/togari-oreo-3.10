@@ -90,9 +90,6 @@ service sensors /vendor/bin/sensors.qcom
     class main
     user root system
     group root system
-    # Grants the ability for this daemon to bind IPC router ports so it can
-    # register QMI services
-    capabilities NET_BIND_SERVICE
 
 # QCOM Secure
 service qseecomd /vendor/bin/qseecomd
@@ -108,7 +105,7 @@ service adsprpcd /vendor/bin/adsprpcd
    group media
 
 # Offline charger
-service charger /sbin/healthd -c
+service charger /charger
     class charger
     critical
 

@@ -22,7 +22,7 @@
 #include <unistd.h>
 #include <cutils/klog.h>
 #include <batteryservice/BatteryService.h>
-#include <cutils/android_reboot.h>
+#include <sys/reboot.h>
 #include "healthd/healthd.h"
 #include "minui/minui.h"
 
@@ -36,6 +36,10 @@
 #define RED_LED_PATH           "/sys/class/leds/led:rgb_red/brightness"
 #define GREEN_LED_PATH         "/sys/class/leds/led:rgb_green/brightness"
 #define BLUE_LED_PATH          "/sys/class/leds/led:rgb_blue/brightness"
+
+#define BMS_READY_PATH                "/sys/class/power_supply/bms/soc_reporting_ready"
+#define WAIT_BMS_READY_TIMES_MAX      200
+#define WAIT_BMS_READY_INTERVAL_USEC  200000
 
 #define LOGV(x...) do { KLOG_DEBUG("charger", x); } while (0)
 #define LOGE(x...) do { KLOG_ERROR("charger", x); } while (0)
@@ -113,6 +117,24 @@ static int set_battery_soc_leds(int soc)
     return 0;
 }
 
+void healthd_board_mode_charger_draw_battery(
+                struct android::BatteryProperties *batt_prop)
+{
+    char cap_str[STR_LEN];
+    int x, y;
+    int str_len_px;
+    static int char_height = -1, char_width = -1;
+
+    if (char_height == -1 && char_width == -1)
+        gr_font_size(gr_sys_font(), &char_width, &char_height);
+    snprintf(cap_str, (STR_LEN - 1), "%d%%", batt_prop->batteryLevel);
+    str_len_px = gr_measure(gr_sys_font(), cap_str);
+    x = (gr_fb_width() - str_len_px) / 2;
+    y = (gr_fb_height() + char_height) / 2;
+    gr_color(0, 0, 0, 255);
+    gr_text(gr_sys_font(), x, y, cap_str, 0);
+}
+
 void healthd_board_mode_charger_battery_update(
                 struct android::BatteryProperties *batt_prop)
 {
@@ -161,6 +183,8 @@ void healthd_board_mode_charger_init()
     int ret;
     char buff[8] = "\0";
     int charging_enabled = 0;
+    int bms_ready = 0;
+    int wait_count = 0;
     int fd;
 
     /* check the charging is enabled or not */
@@ -169,13 +193,30 @@ void healthd_board_mode_charger_init()
         return;
     ret = read(fd, buff, sizeof(buff));
     close(fd);
-    if (ret > 0 && sscanf(buff, "%d\n", &charging_enabled)) {
+    if (ret > 0) {
+        sscanf(buff, "%d\n", &charging_enabled);
+        LOGW("android charging is %s\n",
+                !!charging_enabled ? "enabled" : "disabled");
         /* if charging is disabled, reboot and exit power off charging */
-        if (charging_enabled)
-            return;
-        LOGW("android charging is disabled, exit!\n");
-        android_reboot(ANDROID_RB_RESTART, 0, 0);
+        if (!charging_enabled)
+            reboot(RB_AUTOBOOT);
     }
+    fd = open(BMS_READY_PATH, O_RDONLY);
+    if (fd < 0)
+            return;
+    while (1) {
+        ret = read(fd, buff, sizeof(buff));
+        if (ret >= 0)
+	    sscanf(buff, "%d\n", &bms_ready);
+        else
+            LOGE("read soc-ready failed, ret=%d\n", ret);
+        if ((bms_ready > 0) || (wait_count++ > WAIT_BMS_READY_TIMES_MAX))
+            break;
+        usleep(WAIT_BMS_READY_INTERVAL_USEC);
+        lseek(fd, 0, SEEK_SET);
+    }
+    close(fd);
+    LOGE("Checking BMS SoC ready done!\n");
 }
 
 void healthd_board_init(struct healthd_config*)

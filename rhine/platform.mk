@@ -28,9 +28,9 @@ $(call inherit-product, frameworks/native/build/phone-xhdpi-2048-dalvik-heap.mk)
 
 # Media
 PRODUCT_COPY_FILES += \
-    $(SONY_ROOT)/system/etc/audio_policy.conf:system/vendor/etc/audio_policy.conf \
-    $(SONY_ROOT)/system/etc/media_codecs.xml:system/vendor/etc/media_codecs.xml \
-    $(SONY_ROOT)/system/etc/media_profiles.xml:system/vendor/etc/media_profiles.xml
+    $(SONY_ROOT)/system/etc/audio_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy.conf \
+    $(SONY_ROOT)/system/etc/media_codecs.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs.xml \
+    $(SONY_ROOT)/system/etc/media_profiles.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_profiles.xml
 
 # WLAN
 PRODUCT_COPY_FILES += \
@@ -48,6 +48,10 @@ PRODUCT_COPY_FILES += \
     $(SONY_ROOT)/system/usr/keylayout/atmel_mxt_ts.kl:system/usr/keylayout/atmel_mxt_ts.kl \
     $(SONY_ROOT)/system/usr/keylayout/gpio-keys.kl:system/usr/keylayout/gpio-keys.kl \
     $(SONY_ROOT)/system/usr/keylayout/mhl-rcp.kl:system/usr/keylayout/mhl-rcp.kl
+
+# RQBalance-PowerHAL configuration
+PRODUCT_COPY_FILES += \
+    $(SONY_ROOT)/system/etc/rqbalance_config.xml:system/vendor/etc/rqbalance_config.xml
 
 # Device Specific Hardware
 PRODUCT_COPY_FILES += \
@@ -128,27 +132,6 @@ PRODUCT_PACKAGES += \
 # FM HIDL interfaces
 PRODUCT_PACKAGES += \
     android.hardware.broadcastradio@1.0-impl
-
-# Health
-PRODUCT_PACKAGES += \
-    HealthService
-
-# Health HIDL
-PRODUCT_PACKAGES += \
-    android.hardware.health@1.0-impl
-
-# Gatekeeper
-PRODUCT_PACKAGES += \
-    android.hardware.gatekeeper@1.0-impl
-
-# TV
-PRODUCT_PACKAGES += \
-    android.hardware.tv.input@1.0-impl \
-    android.hardware.tv.input@1.0-service \
-    android.hardware.tv.cec@1.0-impl
-
-PRODUCT_PACKAGES += \
-    tv_input.default
 
 # Telephony Packages (AOSP)
 PRODUCT_PACKAGES += \

@@ -16,7 +16,6 @@ TARGET_KERNEL_CONFIG := aosp_rhine_togari_defconfig
 
 # Inherit from those products. Most specific first.
 $(call inherit-product, device/sony/togari/device.mk)
-$(call inherit-product, frameworks/native/build/phone-xhdpi-2048-dalvik-heap.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_base_telephony.mk)
 
 PRODUCT_NAME := aosp_c6833

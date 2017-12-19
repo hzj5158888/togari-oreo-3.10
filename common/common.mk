@@ -43,7 +43,6 @@ PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.hardware.bluetooth.xml:system/etc/permissions/android.hardware.bluetooth.xml \
     frameworks/native/data/etc/android.hardware.bluetooth_le.xml:system/etc/permissions/android.hardware.bluetooth_le.xml \
     frameworks/native/data/etc/android.hardware.nfc.xml:system/etc/permissions/android.hardware.nfc.xml \
-    frameworks/native/data/etc/android.hardware.nfc.hce.xml:system/etc/permissions/android.hardware.nfc.hce.xml \
     frameworks/native/data/etc/com.android.nfc_extras.xml:system/etc/permissions/com.android.nfc_extras.xml \
     frameworks/native/data/etc/com.nxp.mifare.xml:system/etc/permissions/com.nxp.mifare.xml \
     frameworks/native/data/etc/android.software.midi.xml:system/etc/permissions/android.software.midi.xml
@@ -103,15 +102,12 @@ PRODUCT_PACKAGES += \
     libqcomvoiceprocessingdescriptors \
     libqcompostprocbundle
 
-# Audio HIDL interfaces
+# Audio
 PRODUCT_PACKAGES += \
     android.hardware.audio@2.0-impl \
     android.hardware.audio@2.0-service \
     android.hardware.audio.effect@2.0-impl \
-    android.hardware.audio.effect@2.0-service \
-    android.hardware.broadcastradio@1.0-impl \
-    android.hardware.soundtrigger@2.0-impl \
-    android.hardware.soundtrigger@2.0-service
+    android.hardware.soundtrigger@2.0-impl
 
 # GFX
 PRODUCT_PACKAGES += \
@@ -158,7 +154,8 @@ PRODUCT_PACKAGES += \
     com.android.nfc_extras \
     NfcNci \
     Tag \
-    android.hardware.nfc@1.0-impl
+    android.hardware.nfc@1.0-impl \
+    android.hardware.nfc@1.0-service
 
 # CAMERA
 PRODUCT_PACKAGES += \
@@ -176,9 +173,11 @@ PRODUCT_PACKAGES += \
 
 # OSS
 PRODUCT_PACKAGES += \
+    thermanager \
     timekeep \
     TimeKeep \
-    macaddrsetup
+    macaddrsetup \
+    librqbalance
 
 # Wifi HAL
 PRODUCT_PACKAGES += \
@@ -257,10 +256,6 @@ PRODUCT_PACKAGES += \
 # Netutils
 PRODUCT_PACKAGES += \
     netutils-wrapper-1.0
-
-# qti
-PRODUCT_PACKAGES += \
-    libqti-perfd-client
 
 # perf api
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -352,6 +347,20 @@ PRODUCT_PROPERTY_OVERRIDES += \
     persist.audio.fluence.speaker=true \
     media.aac_51_output_enabled=true \
     audio.deep_buffer.media=1
+
+# Audio
+PRODUCT_PROPERTY_OVERRIDES += \
+    persist.speaker.prot.enable=true \
+    qcom.hw.aac.encoder=true \
+    tunnel.audio.encode = false \
+    persist.audio.init_volume_index=1 \
+    audio.offload.buffer.size.kb=32 \
+    av.offload.enable=true \
+    audio.offload.video=true \
+    audio.offload.gapless.enabled=true \
+    audio.offload.disable=0 \
+    use.voice.path.for.pcm.voip=true \
+    persist.audio.dirac.speaker = true
 
 # Property to enable user to access Google WFD settings.
 PRODUCT_PROPERTY_OVERRIDES += \

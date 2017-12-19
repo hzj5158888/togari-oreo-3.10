@@ -20,8 +20,32 @@ DEVICE_PACKAGE_OVERLAYS += \
 
 # Device etc
 PRODUCT_COPY_FILES := \
-    $(DEVICE_PATH)/rootdir/system/etc/mixer_paths.xml:system/etc/mixer_paths.xml \
+    $(DEVICE_PATH)/rootdir/system/etc/mixer_paths.xml:system/vendor/etc/mixer_paths.xml \
     $(DEVICE_PATH)/rootdir/system/etc/sensors/sensor_def_qcomdev.conf:system/etc/sensors/sensor_def_qcomdev.conf
+
+# acdbdata
+PRODUCT_COPY_FILES := \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Liquid/Liquid_Handset_cal.acdb:system/etc/acdbdata/Liquid/Liquid_Handset_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Liquid/Liquid_Speaker_cal.acdb:system/etc/acdbdata/Liquid/Liquid_Speaker_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/MTP/MTP_Handset_cal.acdb:system/etc/acdbdata/MTP/MTP_Handset_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/MTP/MTP_Speaker_cal.acdb:system/etc/acdbdata/MTP/MTP_Speaker_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Fluid/Fluid_Bluetooth_cal.acdb:system/etc/acdbdata/Fluid/Fluid_Bluetooth_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Fluid/Fluid_General_cal.acdb:system/etc/acdbdata/Fluid/Fluid_General_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Fluid/Fluid_Global_cal.acdb:system/etc/acdbdata/Fluid/Fluid_Global_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Fluid/Fluid_Handset_cal.acdb:system/etc/acdbdata/Fluid/Fluid_Handset_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Fluid/Fluid_Hdmi_cal.acdb:system/etc/acdbdata/Fluid/Fluid_Hdmi_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Fluid/Fluid_Headset_cal.acdb:system/etc/acdbdata/Fluid/Fluid_Headset_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Fluid/Fluid_Speaker_cal.acdb:system/etc/acdbdata/Fluid/Fluid_Speaker_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Liquid/Liquid_Bluetooth_cal.acdb:system/etc/acdbdata/Liquid/Liquid_Bluetooth_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Liquid/Liquid_General_cal.acdb:system/etc/acdbdata/Liquid/Liquid_General_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Liquid/Liquid_Global_cal.acdb:system/etc/acdbdata/Liquid/Liquid_Global_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Liquid/Liquid_Hdmi_cal.acdb:system/etc/acdbdata/Liquid/Liquid_Hdmi_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/Liquid/Liquid_Headset_cal.acdb:system/etc/acdbdata/Liquid/Liquid_Headset_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/MTP/MTP_Bluetooth_cal.acdb:system/etc/acdbdata/MTP/MTP_Bluetooth_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/MTP/MTP_General_cal.acdb:system/etc/acdbdata/MTP/MTP_General_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/MTP/MTP_Global_cal.acdb:system/etc/acdbdata/MTP/MTP_Global_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/MTP/MTP_Hdmi_cal.acdb:system/etc/acdbdata/MTP/MTP_Hdmi_cal.acdb \
+    $(DEVICE_PATH)/rootdir/system/etc/acdbdata/MTP/MTP_Headset_cal.acdb:system/etc/acdbdata/MTP/MTP_Headset_cal.acdb
 
 # Device Specific Permissions
 PRODUCT_COPY_FILES += \
@@ -64,6 +88,12 @@ PRODUCT_AAPT_PREF_CONFIG := xhdpi
 PRODUCT_PROPERTY_OVERRIDES := \
     ro.sf.lcd_density=320 \
     ro.usb.pid_suffix=19C
+
+# Set lowram options
+PRODUCT_PROPERTY_OVERRIDES += \
+    ro.config.low_ram=true \
+    ro.lmk.critical_upgrade=true \
+    ro.lmk.upgrade_pressure=40
 
 # Inherit from those products. Most specific first.
 $(call inherit-product, device/sony/rhine/platform.mk)
