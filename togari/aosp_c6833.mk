@@ -18,6 +18,12 @@ TARGET_KERNEL_CONFIG := aosp_rhine_togari_defconfig
 $(call inherit-product, device/sony/togari/device.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_base_telephony.mk)
 
+# Set lowram options
+PRODUCT_PROPERTY_OVERRIDES += \
+    ro.config.low_ram=true \
+    ro.lmk.critical_upgrade=true \
+    ro.lmk.upgrade_pressure=40
+
 PRODUCT_NAME := aosp_c6833
 PRODUCT_DEVICE := togari
 PRODUCT_MODEL := Xperia Z Ultra (AOSP)

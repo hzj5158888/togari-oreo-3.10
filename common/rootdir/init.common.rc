@@ -59,7 +59,7 @@ on post-fs-data
     mkdir /data/fpc 0700 system system
 
     mkdir /data/misc/dts 0770 media audio
-    mkdir /data/persist 0770 persist_rw persist_rw
+    mkdir /data/persist 0770 system system
 
     # Create directory used by audio subsystem
     mkdir /data/misc/audio 0770 audio audio
@@ -84,6 +84,9 @@ on post-fs-data
     # Wifi firmware reload path
     chown wifi wifi /sys/module/wlan/parameters/fwpath
 
+    # Mark wifi driver as unloaded - "ok" indicates loaded
+    setprop wlan.driver.status not_ok
+
     # Create directory from IMS services
     mkdir /data/shared 0755
     chown system system /data/shared
@@ -91,8 +94,6 @@ on post-fs-data
     # Enable the setgid bit on the directory
     mkdir /data/audio 0770 media audio
     chmod 2770 /data/audio
-
-    mkdir /data/data/media 0770 media media
 
     # QCOM camera stack
     mkdir /data/misc/camera 0770 camera camera
@@ -132,6 +133,14 @@ on early-boot
     chown system graphics /sys/devices/virtual/graphics/fb0/msm_cmd_autorefresh_en
 
 on boot
+    # Mark the copy complete flag to not completed
+    write /data/misc/radio/copy_complete 0
+    chown radio radio /data/misc/radio/copy_complete
+    chmod 0660 /data/misc/radio/copy_complete
+
+    # Socket location for RIDL
+    mkdir /dev/socket/RIDL 2770 system system
+
     # Bluetooth modules
     chown system system /sys/module/bluetooth/parameters/disable_ertm
     chown system system /sys/module/bluetooth/parameters/disable_esco

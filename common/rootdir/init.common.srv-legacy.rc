@@ -60,7 +60,7 @@ service netmgrd /vendor/bin/netmgrd
     disabled
 
 # QCOM prop
-service irsc_util /vendor/bin/irsc_util "/etc/sec_config"
+service irsc_util /vendor/bin/irsc_util "/vendor/etc/sec_config"
     class main
     user root
     oneshot
@@ -88,7 +88,7 @@ service per_proxy /vendor/bin/pm-proxy
 # QCOM sensors
 service sensors /vendor/bin/sensors.qcom
     class main
-    user root system
+    user root
     group root system
 
 # QCOM Secure
@@ -126,7 +126,7 @@ service thermal-engine /vendor/bin/thermal-engine
 # OSS time
 service timekeep /vendor/bin/timekeep restore
     class late_start
-    user root system
+    user root
     group root
     oneshot
 
