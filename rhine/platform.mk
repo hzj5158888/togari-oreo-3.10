@@ -33,6 +33,7 @@ PRODUCT_COPY_FILES += \
 
 # Audio
 PRODUCT_COPY_FILES += \
+    $(SONY_ROOT)/system/etc/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml \
     $(SONY_ROOT)/system/etc/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml \
     frameworks/av/services/audiopolicy/config/a2dp_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/a2dp_audio_policy_configuration.xml \
     frameworks/av/services/audiopolicy/config/usb_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/usb_audio_policy_configuration.xml \
@@ -59,7 +60,7 @@ PRODUCT_COPY_FILES += \
 
 # RQBalance-PowerHAL configuration
 PRODUCT_COPY_FILES += \
-    $(SONY_ROOT)/system/etc/rqbalance_config.xml:system/vendor/etc/rqbalance_config.xml
+    $(SONY_ROOT)/system/etc/rqbalance_config.xml:$(TARGET_COPY_OUT_VENDOR)/etc/rqbalance_config.xml
 
 # Device Specific Hardware
 PRODUCT_COPY_FILES += \

@@ -82,7 +82,6 @@ MASTER_SIDE_CP_TARGET_LIST := msm8996 msm8998
 include $(call all-makefiles-under,$(LOCAL_PATH))
 
 audio-hal := hardware/qcom/audio
-#gps-hal := hardware/qcom/gps/msm8994
 
 ifeq ($(TARGET_KERNEL_VERSION),3.10)
 display-hal := hardware/qcom/display/msm8994

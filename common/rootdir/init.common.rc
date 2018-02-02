@@ -132,6 +132,13 @@ on early-boot
     chmod 0664 /sys/devices/virtual/graphics/fb0/msm_cmd_autorefresh_en
     chown system graphics /sys/devices/virtual/graphics/fb0/msm_cmd_autorefresh_en
 
+    # Start services for bootanim
+    start surfaceflinger
+    start hwcomposer-2-1
+    start configstore-hal-1-0
+    start gralloc-2-0
+    start bootanim
+
 on boot
     # Mark the copy complete flag to not completed
     write /data/misc/radio/copy_complete 0
